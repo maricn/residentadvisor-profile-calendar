@@ -69,22 +69,22 @@ if(empty($username)) {
 
 $events = '';
 
-$html = file_get_html('http://www.residentadvisor.net/profile/'.$username);
+$html = file_get_html('https://www.residentadvisor.net/profile/'.$username);
 foreach($html->find('ul#items .event-item') as $element) {
-    $datestart = $element->find('.bbox h1', 0)->plaintext;
+    $datestart = $element->find('div.bbox h1', 0)->plaintext;
     $datestart = substr($datestart, 0, -3); // remove trailing slash
 
-    $url = 'http://www.residentadvisor.net'.$element->find('a', 0)->href;
+    $url = 'https://www.residentadvisor.net'.$element->find('a', 0)->href;
 
-    $title = $element->find('h1.title', 0)->plaintext;
+    $title = explode("</a>", $element->find('div.bbox h1.title a span.title', 0)->plaintext, 2)[0]; //remove </a> and whatever is trailing
 
-    $address = $element->find('h1.title span', 0)->plaintext;
-    $address = substr($address, 3); // remove prefix 'at'
+    $address = explode("</h1>", $element->find('div.bbox h1.title', 0)->find('span', 1)->plaintext, 2)[0]; // remove </h1> and whatever is trailing
+    $address = substr($address, 8); // remove prefix '</a> at '
 
-    $events .= parseEvent(strtotime($datestart), $url, $title, $title.' '.$url.' at '.$address.' - '.'Resident Advisor Event from profile '.$username, $address, 'RA: '.$title);
+    $events .= parseEvent(strtotime($datestart), $url, $title.'<br>'.$url.'<br>'.$address, $address, $title);
 }
 
-function parseEvent($datestart, $uri, $title, $description, $address, $summary) {
+function parseEvent($datestart, $uri, $description, $address, $summary) {
     $str = 'BEGIN:VEVENT
 DTEND:'.dateToCal($datestart+3600).'
 UID:'.uniqid().'
@@ -96,6 +96,8 @@ SUMMARY:'.escapeString($summary).'
 DTSTART:'.dateToCal($datestart).'
 END:VEVENT
 ';
+
+// SUMMARY:'.escapeString($summary).'
     return $str;
 }
 
@@ -114,6 +116,6 @@ VERSION:2.0
 PRODID:-//RESIDENTADVISOR//RemoteApi//EN
 CALSCALE:GREGORIAN
 METHOD:PUBLISH
-X-WR-CALNAME:RA Profile Events <?= escapeString($username) ?> calendar
+X-WR-CALNAME:ResidentAdvisor <?= escapeString($username) ?>
 <?= $events ?>
 END:VCALENDAR
