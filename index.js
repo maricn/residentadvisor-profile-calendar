@@ -1,56 +1,84 @@
-<?php
+const fetch = require("node-fetch");
+const cheerio = require("cheerio");
 
-// incldue dom parser
-require('./vendor/shark/simple_html_dom/simple_html_dom.php');
-
-// via https://gist.github.com/jakebellacera/635416
-
-// Variables used in this script:
-//   $summary     - text title of the event
-//   $datestart   - the starting date (in seconds since unix epoch)
-//   $dateend     - the ending date (in seconds since unix epoch)
-//   $address     - the event's address
-//   $uri         - the URL of the event (add http://)
-//   $description - text description of the event
-//   $filename    - the name of this file for saving (e.g. my-event-name.ics)
-//
-// Notes:
-//  - the UID should be unique to the event, so in this case I'm just using
-//    uniqid to create a uid, but you could do whatever you'd like.
-//
-//  - iCal requires a date format of "yyyymmddThhiissZ". The "T" and "Z"
-//    characters are not placeholders, just plain ol' characters. The "T"
-//    character acts as a delimeter between the date (yyyymmdd) and the time
-//    (hhiiss), and the "Z" states that the date is in UTC time. Note that if
-//    you don't want to use UTC time, you must prepend your date-time values
-//    with a TZID property. See RFC 5545 section 3.3.5
-//
-//  - The Content-Disposition: attachment; header tells the browser to save/open
-//    the file. The filename param sets the name of the file, so you could set
-//    it as "my-event-name.ics" or something similar.
-//
-//  - Read up on RFC 5545, the iCalendar specification. There is a lot of helpful
-//    info in there, such as formatting rules. There are also many more options
-//    to set, including alarms, invitees, busy status, etc.
-//
-//      https://www.ietf.org/rfc/rfc5545.txt
-
-// 1. Set the correct headers for this file
-if ($_GET['debug'] !== "true") {
-    header('Content-type: text/calendar; charset=utf-8');
-    header('Content-Disposition: attachment; filename=' . $filename);
+const fetchRaEventTimes = async (eventId) => {
+    try {
+        const response = await fetch('https://www.residentadvisor.net/events/' + eventId);
+        const html = await response.text();
+        return html;
+    } catch (err) {
+        console.log(err);
+    }
 }
 
+const fetchRaProfilePage = async (name) => {
+    try {
+        const response = await fetch('https://www.residentadvisor.net/profile/' + name);
+        const html = await response.text();
+        return html;
+    } catch (error) {
+        console.log(error);
+    }
+}
 
-// 2. Define helper functions
+const getEventTimes = (eventPage) => {
+    try {
+        const $ = cheerio.load(eventPage);
+        let eventDetailsList = $('#detail ul li');
+        let timeDetails = eventDetailsList.toArray()[0].text();
+        console.log('Parsed event time details: ' + timeDetails);
+        return timeDetails;
+    } catch (err) {
+        console.log(err);
+        return {};
+    }
+}
 
-// Converts a unix timestamp to an ics-friendly format
-// NOTE: "Z" means that this timestamp is a UTC timestamp. If you need
-// to set a locale, remove the "\Z" and modify DTEND, DTSTAMP and DTSTART
-// with TZID properties (see RFC 5545 section 3.3.5 for info)
-//
-// Also note that we are using "H" instead of "g" because iCalendar's Time format
-// requires 24-hour time (see RFC 5545 section 3.3.12 for info).
+const getAttendingEvents = async (profilePage) => {
+    const $ = cheerio.load(profilePage);
+    let elements = $('ul#items .event-item');
+    let events = await Promise.all(elements.toArray().map(async (element)  => {
+        console.log('Parsing element: ' + element);
+        try {
+            let datestart = $(element).find('div.bbox h1').text().slice(-3);
+            let url = 'https://www.residentadvisor.net' + $(element).find('a').attr('href');
+            let eventId = url.split('/')[1];
+
+            let eventPage = await fetchRaEventTimes(eventId);
+            let timeDetails = getEventTimes(eventPage);
+            
+            return {
+                datestart, url, timeDetails
+            };
+        } catch (err) {
+            console.log(err);
+            return null;
+        }
+    }));
+
+    return { events: events.filter(e => !!e) };
+}
+
+const createCalendar = (attEvents) => {
+    return 'TEST:' + JSON.stringify(attEvents.events);
+}
+
+exports.getResAdvCalendar = async (req, res) => {
+    let name = req.query.name;
+    if (!name) {
+        res.status(400).send('Please add ?name=<ra_profile> to the request path.');
+    }
+
+    let profilePage = await fetchRaProfilePage(name);
+    let attendingEvents = await getAttendingEvents(profilePage);
+
+    let calendar = createCalendar(attendingEvents);
+
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename=' + req.query.name);
+    res.end(calendar);
+}
+/*
 function dateToCal($timestamp) {
   return date('Ymd', $timestamp);
 }
@@ -145,3 +173,5 @@ X-WR-CALNAME:RA <?= escapeString($username) ?>
 
 <?= $events ?>
 END:VCALENDAR
+*/
+
