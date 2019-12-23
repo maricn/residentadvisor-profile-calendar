@@ -2,5 +2,31 @@
   "dependencies": {
     "cheerio": "^1.0.0-rc.2",
     "node-fetch": "^2.1.2"
-  }
+  },
+  "devDependencies": {
+    "chai": "^4.2.0",
+    "mocha": "^5.2.0",
+    "nock": "^10.0.1",
+    "nock-record": "^0.3.3"
+  },
+  "name": "residentadvisor-profile-calendar",
+  "description": "residentadvisor-profile-calendar ================================",
+  "version": "1.0.0",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "mocha --recursive test/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/maricn/residentadvisor-profile-calendar.git"
+  },
+  "author": "Nikola Maric <maricn@gmail.com>",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/maricn/residentadvisor-profile-calendar/issues"
+  },
+  "homepage": "https://github.com/maricn/residentadvisor-profile-calendar#readme"
 }

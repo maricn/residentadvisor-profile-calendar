@@ -1,0 +1,9 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="Duplicates" enabled="true" level="Very Weak Warning" enabled_by_default="true">
+      <option name="myFilterOutGeneratedCode" value="true" />
+    </inspection_tool>
+    <inspection_tool class="SpringAutowiredFieldsWarningInspection" enabled="true" level="Very Weak Warning" enabled_by_default="true" />
+  </profile>
+</component>

@@ -1,7 +1,9 @@
+"use strict";
+
 const fetch = require("node-fetch");
 const cheerio = require("cheerio");
 
-const fetchRaEventTimes = async (eventId) => {
+const _fetchRaEventTimes = async (eventId) => {
     try {
         const response = await fetch('https://www.residentadvisor.net/events/' + eventId);
         const html = await response.text();
@@ -9,9 +11,9 @@ const fetchRaEventTimes = async (eventId) => {
     } catch (err) {
         console.log(err);
     }
-}
+};
 
-const fetchRaProfilePage = async (name) => {
+const _fetchRaProfilePage = async (name) => {
     try {
         const response = await fetch('https://www.residentadvisor.net/profile/' + name);
         const html = await response.text();
@@ -19,34 +21,38 @@ const fetchRaProfilePage = async (name) => {
     } catch (error) {
         console.log(error);
     }
-}
+};
 
 const getEventTimes = (eventPage) => {
     try {
         const $ = cheerio.load(eventPage);
-        let eventDetailsList = $('#detail ul li');
-        let timeDetails = eventDetailsList.toArray()[0].text();
-        console.log('Parsed event time details: ' + timeDetails);
-        return timeDetails;
+        const eventDateDetails = $('aside#detail ul li:nth-child(1)');
+        const date = eventDateDetails.find('a').text();
+        const eventDateDetailsArray = eventDateDetails.contents().toArray();
+        const time = eventDateDetailsArray[eventDateDetailsArray.length - 1].text();
+        console.log('Event date details: ' + JSON.stringify(date) + '. Event time details: ' + JSON.stringify(time));
+
+        // @TODO: convert to ISO-8601
+        return date + time;
     } catch (err) {
         console.log(err);
         return {};
     }
-}
+};
 
 const getAttendingEvents = async (profilePage) => {
     const $ = cheerio.load(profilePage);
-    let elements = $('ul#items .event-item');
-    let events = await Promise.all(elements.toArray().map(async (element)  => {
-        console.log('Parsing element: ' + element);
+    const elements = $('ul#items article.event-item');
+    const events = await Promise.all(elements.toArray().map(async (element) => {
         try {
-            let datestart = $(element).find('div.bbox h1').text().slice(-3);
-            let url = 'https://www.residentadvisor.net' + $(element).find('a').attr('href');
-            let eventId = url.split('/')[1];
+            const datestart = $(element).find('div.bbox h1').text().slice(-3);
+            const href = $(element).find('a').attr('href');
+            const eventId = href.split('/')[2];
 
-            let eventPage = await fetchRaEventTimes(eventId);
-            let timeDetails = getEventTimes(eventPage);
-            
+            const eventPage = await _fetchRaEventTimes(eventId);
+            const timeDetails = getEventTimes(eventPage);
+
+            const url = 'https://www.residentadvisor.net' + href;
             return {
                 datestart, url, timeDetails
             };
@@ -56,28 +62,39 @@ const getAttendingEvents = async (profilePage) => {
         }
     }));
 
-    return { events: events.filter(e => !!e) };
-}
+    return {events: events.filter(e => !!e)};
+};
 
 const createCalendar = (attEvents) => {
     return 'TEST:' + JSON.stringify(attEvents.events);
-}
+};
 
-exports.getResAdvCalendar = async (req, res) => {
+const _getResAdvCalendar = async (name) => {
+
+    let profilePage = await _fetchRaProfilePage(name);
+    let attendingEvents = await getAttendingEvents(profilePage);
+
+    let calendar = createCalendar(attendingEvents);
+
+    return calendar;
+};
+
+const respond = async (req, res) => {
     let name = req.query.name;
     if (!name) {
         res.status(400).send('Please add ?name=<ra_profile> to the request path.');
     }
 
-    let profilePage = await fetchRaProfilePage(name);
-    let attendingEvents = await getAttendingEvents(profilePage);
-
-    let calendar = createCalendar(attendingEvents);
+    await getResAdvCalendar(name, res);
 
     res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename=' + req.query.name);
     res.end(calendar);
-}
+};
+
+exports.getResAdvCalendar = _getResAdvCalendar;
+exports.fetchRaEventTimes = _fetchRaEventTimes;
+
 /*
 function dateToCal($timestamp) {
   return date('Ymd', $timestamp);
